@@ -40,8 +40,12 @@ void LDP_Thread_FB_Entry(void *parameter)
 		adc_count++;
 		if(adc_count>=20)
 		{
-			vout=adc_buf_v/24.785;
-			iout=adc_buf_i/29.285;
+			vout=((float)(adc_buf_v/20)+1.4474)/1.2445;//polyfit no #1
+//			vout=((float)(adc_buf_v/20)-0.1263)/1.2385;//polyfit no #2
+//			vout=(float)(adc_buf_v/20);
+			iout=((float)(adc_buf_i/20)+2.6643)/1.3654;//polyfit no #1
+//			iout=((float)(adc_buf_i/20)+1.5657)/1.4783;//polyfit no #2
+//			iout=(float)(adc_buf_i/20);
 			temp = (4096-adc_buf_temp/20)*240/4096;		
 			if(temp>55)
 			{
@@ -110,14 +114,18 @@ void LDP_Thread_Spinbox_Entry(void *parameter)
 /*---------------------LDP_Thread_Settings_Entry-------------------------------------*/
 void LDP_Thread_Settings_Entry(void *parameter)
 {
+	float vset=0,iset=0;
 	while(1)
 	{
 		rt_thread_mdelay(50);
 		if(setting_flag)
 		{
-			HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,spinbox_v.value*1.2405);
-			HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,spinbox_i.value*1.465);
-			if(on_off_flag)HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,spinbox_v.value*1.2405);
+			vset = ((float)spinbox_v.value-0.0141)/0.8029;//polyfit no #1
+//			vset = ((float)spinbox_v.value-0.018)/0.8062;//polyfit no #2
+			iset = ((float)spinbox_i.value-0.8169)/0.7328;//polyfit no #1
+//			iset = ((float)spinbox_i.value-0.1445)/0.676;//polyfit no #2
+			HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,(uint16_t)iset);
+			if(on_off_flag)HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,(uint16_t)vset);
 			else HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,0);		
 			setting_flag=0;	
 		}	
@@ -236,7 +244,7 @@ void LDP_Thread_GUI_Entry(void *parameter)
 		
 		if(on_off_flag)OLED_ShowString(15,52,"ON ",6,12,1);
 		else OLED_ShowString(15,52,"OFF",6,12,1);
-		if(iout>=spinbox_i.value*0.98)OLED_ShowString(15,40,"CC",6,12,DISPLAY_MODE);
+		if(iout>=spinbox_i.value)OLED_ShowString(15,40,"CC",6,12,DISPLAY_MODE);
 		else OLED_ShowString(15,40,"CV",6,12,DISPLAY_MODE);
 		OLED_Refresh_Gram();
 	}
