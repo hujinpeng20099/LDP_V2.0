@@ -1,67 +1,62 @@
 #include "task.h"
 #include "lcd.h"
 #include "rtthread.h"
-
+#include "math.h"
 
 /*控制变量*/
 uint16_t on_off_flag=0;
 uint8_t setting_flag=1;
 
-uint16_t vin=0,temp=0;
-uint16_t vout=0,iout=0;
-
+uint32_t vin=0,temp=0;
+float vout=0,iout=0;
 uint8_t adc_count=0;
-uint32_t adc_buf_v=0,adc_buf_i=0,adc_buf_temp=0;
-
+//uint32_t adc_buf_v=0,adc_buf_i=0,adc_buf_temp=0;
+static rt_timer_t adc_sample_timer;
 /*Spinbox 控制变量*/
 int8_t encode_pos=7;
 int16_t encoder_value=0;
 Spinbox_TypeDef spinbox_v,spinbox_i;
 
 /*ADC 变量*/
-uint16_t adc_convertedvalue[4];
+uint16_t adc_convertedvalue[BUF_SIZE];
 extern ADC_HandleTypeDef hadc;
 
 /*DAC 变量*/
 extern DAC_HandleTypeDef hdac;
 
-/*---------------------LDP_Thread_FB_Entry-------------------------------------*/
-void LDP_Thread_FB_Entry(void *parameter)
+/*---------------------adc timer-------------------------------------*/
+static void adc_sample_time_out(void *param)
 {
-	if(HAL_ADCEx_Calibration_Start(&hadc)!=HAL_OK)rt_kprintf("ADC_Calibration_Error!\n");	
-	
-	while(1)
+	adc_count++;
+	if(adc_count>=BUF_SIZE/4)
 	{
-		HAL_ADC_Start_DMA(&hadc,(uint32_t *)adc_convertedvalue,4);
-		rt_thread_mdelay(10);
-		adc_buf_v += adc_convertedvalue[1];
-		adc_buf_i += adc_convertedvalue[2];
-		adc_buf_temp += adc_convertedvalue[3];
-		adc_count++;
-		if(adc_count>=20)
+		vout = 0;
+		iout = 0;
+		for(uint16_t i=0;i<BUF_SIZE/4;i++)
 		{
-			vout=((float)(adc_buf_v/20)+1.4474)/1.2445;//polyfit no #1
+			vout += (float)((adc_convertedvalue[1+4*i]-0.1263)/1.2385)*(float)((adc_convertedvalue[1+4*i]-0.1263)/1.2385);
+			iout += (float)((adc_convertedvalue[2+4*i]+1.5657)/1.4783)*(float)((adc_convertedvalue[2+4*i]+1.5657)/1.4783);
+//			vout=((float)(adc_buf_v/20)+1.4474)/1.2445;//polyfit no #1
 //			vout=((float)(adc_buf_v/20)-0.1263)/1.2385;//polyfit no #2
 //			vout=(float)(adc_buf_v/20);
-			iout=((float)(adc_buf_i/20)+2.6643)/1.3654;//polyfit no #1
+//			iout=((float)(adc_buf_i/20)+2.6643)/1.3654;//polyfit no #1
 //			iout=((float)(adc_buf_i/20)+1.5657)/1.4783;//polyfit no #2
 //			iout=(float)(adc_buf_i/20);
-			temp = (4096-adc_buf_temp/20)*240/4096;		
-			if(temp>55)
-			{
-				on_off_flag=0;
-				setting_flag=1;
-			}
-			adc_buf_v=0;
-			adc_buf_i=0;
-			adc_buf_temp=0;
-			adc_count=0;
+			temp += (4096-adc_convertedvalue[3+4*i])*240/4096;
 		}
+		vout = sqrt(vout*4/BUF_SIZE);
+		iout = sqrt(iout*4/BUF_SIZE); 
+		temp = temp*4/BUF_SIZE;
 		vin = (adc_convertedvalue[0]*36.5)/4096;
-	}		
+		if(temp>55)
+		{
+			on_off_flag=0;
+			setting_flag=1;
+		}
+		adc_count = 0;
+	}
+	HAL_ADC_Start_DMA(&hadc,(uint32_t *)adc_convertedvalue,BUF_SIZE);
 }
-
-
 
 /*---------------------LDP_Thread_Spinbox_Entry-------------------------------------*/
 void spinbox_vset_init(void)
@@ -229,7 +224,7 @@ void LDP_Thread_GUI_Entry(void *parameter)
 	
 	while(1)
 	{
-		rt_thread_mdelay(400);
+		rt_thread_mdelay(150);
 		
 		OLED_Show_Spinbox(&spinbox_v);
 		OLED_Show_Spinbox(&spinbox_i);
@@ -250,7 +245,6 @@ void LDP_Thread_GUI_Entry(void *parameter)
 	}
 }
 
-
 /* LDP_Thread_Creat
 Thread 1: LDP_Thread_FB ADC Sampling and process
 Thread 2: LDP_Thread_Spinbox  spinbox for encoder edit
@@ -260,22 +254,20 @@ Thread 4:	LDP_Thread_GUI	GUI create and refresh
 
 void LDP_Thread_Creat(void)
 {	
-	/*gui thread */
-	rt_thread_t TD_FB = RT_NULL;	
 	rt_thread_t TD_Spinbox = RT_NULL;
 	rt_thread_t TD_Settings = RT_NULL;
 	rt_thread_t TD_GUI = RT_NULL;
-	
-	/* 创建线程 1 LDP_Thread_FB */
-	TD_FB = rt_thread_create("TD_FB",
-									LDP_Thread_FB_Entry, RT_NULL,
-									THREAD_STACK_SIZE,
-									THREAD_PRIORITY, THREAD_TIMESLICE);
+	if(HAL_ADCEx_Calibration_Start(&hadc)!=HAL_OK)rt_kprintf("ADC_Calibration_Error!\n");	
+	/* creat timer for adc sample */
+	adc_sample_timer = rt_timer_create("adc_timer",
+											adc_sample_time_out,
+											RT_NULL,
+											2,
+											RT_TIMER_FLAG_PERIODIC
+										);
+	if(adc_sample_timer != RT_NULL)rt_timer_start(adc_sample_timer);
 
-	/* 如果获得线程控制块，启动这个线程 */
-	if (TD_FB != RT_NULL)rt_thread_startup(TD_FB);
-	
-	/* 创建线程 2 LDP_Thread_Spinbox*/
+	/* 创建线程 1 LDP_Thread_Spinbox*/
 	TD_Spinbox = rt_thread_create("TD_Spinbox",
 											LDP_Thread_Spinbox_Entry, RT_NULL,
 											THREAD_STACK_SIZE,
@@ -284,7 +276,7 @@ void LDP_Thread_Creat(void)
 	/* 如果获得线程控制块，启动这个线程 */
 	if (TD_Spinbox != RT_NULL)rt_thread_startup(TD_Spinbox);
 
-	/* 创建线程 3 LDP_Thread_Settings*/
+	/* 创建线程 2 LDP_Thread_Settings*/
 	TD_Settings = rt_thread_create("TD_Settings",
 												LDP_Thread_Settings_Entry, RT_NULL,
 												THREAD_STACK_SIZE,
@@ -293,7 +285,7 @@ void LDP_Thread_Creat(void)
 	/* 如果获得线程控制块，启动这个线程 */
 	if (TD_Settings != RT_NULL)rt_thread_startup(TD_Settings);
 	
-	/* 创建线程 4 LDP_GUI*/
+	/* 创建线程 3 LDP_GUI*/
 	TD_GUI = rt_thread_create("TD_GUI",
 										LDP_Thread_GUI_Entry, RT_NULL,
 										THREAD_STACK_SIZE*2,

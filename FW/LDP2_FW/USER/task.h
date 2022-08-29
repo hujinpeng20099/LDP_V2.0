@@ -5,10 +5,11 @@
 
 #define DISPLAY_MODE	1
 
-#define THREAD_PRIORITY         8
+#define THREAD_PRIORITY         5
 #define THREAD_STACK_SIZE       256
 #define THREAD_TIMESLICE        1000
 
+#define BUF_SIZE								500
 
 /*Data of spinbox*/
 typedef struct {
