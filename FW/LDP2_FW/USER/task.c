@@ -1,7 +1,7 @@
 #include "task.h"
 #include "lcd.h"
 #include "rtthread.h"
-#include "math.h"
+
 
 /*控制变量*/
 uint16_t on_off_flag=0;
@@ -9,54 +9,18 @@ uint8_t setting_flag=1;
 
 uint32_t vin=0,temp=0;
 float vout=0,iout=0;
-uint8_t adc_count=0;
-//uint32_t adc_buf_v=0,adc_buf_i=0,adc_buf_temp=0;
-static rt_timer_t adc_sample_timer;
+
 /*Spinbox 控制变量*/
 int8_t encode_pos=7;
 int16_t encoder_value=0;
 Spinbox_TypeDef spinbox_v,spinbox_i;
 
-/*ADC 变量*/
-uint16_t adc_convertedvalue[BUF_SIZE];
-extern ADC_HandleTypeDef hadc;
 
+/*ADC 变量*/
+extern ADC_HandleTypeDef hadc;
 /*DAC 变量*/
 extern DAC_HandleTypeDef hdac;
-
-/*---------------------adc timer-------------------------------------*/
-static void adc_sample_time_out(void *param)
-{
-	adc_count++;
-	if(adc_count>=BUF_SIZE/4)
-	{
-		vout = 0;
-		iout = 0;
-		for(uint16_t i=0;i<BUF_SIZE/4;i++)
-		{
-			vout += (float)((adc_convertedvalue[1+4*i]-0.1263)/1.2385)*(float)((adc_convertedvalue[1+4*i]-0.1263)/1.2385);
-			iout += (float)((adc_convertedvalue[2+4*i]+1.5657)/1.4783)*(float)((adc_convertedvalue[2+4*i]+1.5657)/1.4783);
-//			vout=((float)(adc_buf_v/20)+1.4474)/1.2445;//polyfit no #1
-//			vout=((float)(adc_buf_v/20)-0.1263)/1.2385;//polyfit no #2
-//			vout=(float)(adc_buf_v/20);
-//			iout=((float)(adc_buf_i/20)+2.6643)/1.3654;//polyfit no #1
-//			iout=((float)(adc_buf_i/20)+1.5657)/1.4783;//polyfit no #2
-//			iout=(float)(adc_buf_i/20);
-			temp += (4096-adc_convertedvalue[3+4*i])*240/4096;
-		}
-		vout = sqrt(vout*4/BUF_SIZE);
-		iout = sqrt(iout*4/BUF_SIZE); 
-		temp = temp*4/BUF_SIZE;
-		vin = (adc_convertedvalue[0]*36.5)/4096;
-		if(temp>55)
-		{
-			on_off_flag=0;
-			setting_flag=1;
-		}
-		adc_count = 0;
-	}
-	HAL_ADC_Start_DMA(&hadc,(uint32_t *)adc_convertedvalue,BUF_SIZE);
-}
+extern TIM_HandleTypeDef htim3;
 
 /*---------------------LDP_Thread_Spinbox_Entry-------------------------------------*/
 void spinbox_vset_init(void)
@@ -115,9 +79,11 @@ void LDP_Thread_Settings_Entry(void *parameter)
 		rt_thread_mdelay(50);
 		if(setting_flag)
 		{
-			vset = ((float)spinbox_v.value-0.0141)/0.8029;//polyfit no #1
-//			vset = ((float)spinbox_v.value-0.018)/0.8062;//polyfit no #2
-			iset = ((float)spinbox_i.value-0.8169)/0.7328;//polyfit no #1
+//			vset = spinbox_v.value;//for test
+//			vset = ((float)spinbox_v.value-0.0141)/0.8029;//polyfit no #1
+			vset = ((float)spinbox_v.value-0.0178)/0.8062;//polyfit no #2 or no #3
+			iset = spinbox_i.value;//for test
+//			iset = ((float)spinbox_i.value-0.8169)/0.7328;//polyfit no #1
 //			iset = ((float)spinbox_i.value-0.1445)/0.676;//polyfit no #2
 			HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,(uint16_t)iset);
 			if(on_off_flag)HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,(uint16_t)vset);
@@ -245,6 +211,7 @@ void LDP_Thread_GUI_Entry(void *parameter)
 	}
 }
 
+
 /* LDP_Thread_Creat
 Thread 1: LDP_Thread_FB ADC Sampling and process
 Thread 2: LDP_Thread_Spinbox  spinbox for encoder edit
@@ -258,14 +225,7 @@ void LDP_Thread_Creat(void)
 	rt_thread_t TD_Settings = RT_NULL;
 	rt_thread_t TD_GUI = RT_NULL;
 	if(HAL_ADCEx_Calibration_Start(&hadc)!=HAL_OK)rt_kprintf("ADC_Calibration_Error!\n");	
-	/* creat timer for adc sample */
-	adc_sample_timer = rt_timer_create("adc_timer",
-											adc_sample_time_out,
-											RT_NULL,
-											2,
-											RT_TIMER_FLAG_PERIODIC
-										);
-	if(adc_sample_timer != RT_NULL)rt_timer_start(adc_sample_timer);
+	HAL_TIM_Base_Start_IT(&htim3);
 
 	/* 创建线程 1 LDP_Thread_Spinbox*/
 	TD_Spinbox = rt_thread_create("TD_Spinbox",

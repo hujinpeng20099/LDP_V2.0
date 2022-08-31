@@ -55,3 +55,4 @@ ldp2_fw\hw_init.o: ../Middlewares/Third_Party/RealThread_RTOS_RT-Thread/include/
 ldp2_fw\hw_init.o: ../Middlewares/Third_Party/RealThread_RTOS_RT-Thread/include/rtm.h
 ldp2_fw\hw_init.o: ../Middlewares/Third_Party/RealThread_RTOS_RT-Thread/include/rtthread.h
 ldp2_fw\hw_init.o: ../Middlewares/Third_Party/RealThread_RTOS_RT-Thread/components/finsh/finsh_api.h
+ldp2_fw\hw_init.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h

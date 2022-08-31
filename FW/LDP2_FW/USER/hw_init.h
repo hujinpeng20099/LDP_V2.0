@@ -3,6 +3,8 @@
 
 #include "main.h"
 
+#define BUF_SIZE								200
+
 void LDP_HW_Init(void);
 
 #endif

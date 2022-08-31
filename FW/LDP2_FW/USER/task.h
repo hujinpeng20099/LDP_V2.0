@@ -9,7 +9,7 @@
 #define THREAD_STACK_SIZE       256
 #define THREAD_TIMESLICE        1000
 
-#define BUF_SIZE								500
+
 
 /*Data of spinbox*/
 typedef struct {
