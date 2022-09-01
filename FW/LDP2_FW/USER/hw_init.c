@@ -422,13 +422,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			iout = 0;
 			for(uint16_t i=0;i<BUF_SIZE/4;i++)
 			{
+//			vout=((float)(adc_buf_v/20)+1.4474)/1.2445;//polyfit no #1				
 				vout += (float)((adc_convertedvalue[1+4*i]-0.1263)/1.2385)*(float)((adc_convertedvalue[1+4*i]-0.1263)/1.2385);//no #2 or no #3
+//				iout += (float)((adc_convertedvalue[2+4*i]+2.6643)/1.3654)*(float)((adc_convertedvalue[2+4*i]+2.6643)/1.3654);//no #1
 //				iout += (float)((adc_convertedvalue[2+4*i]+1.5657)/1.4783)*(float)((adc_convertedvalue[2+4*i]+1.5657)/1.4783);//no #2	
-//			vout=((float)(adc_buf_v/20)+1.4474)/1.2445;//polyfit no #1
-//			vout=(float)(adc_buf_v/20);
-//			iout=((float)(adc_buf_i/20)+2.6643)/1.3654;//polyfit no #1
-//			iout=((float)(adc_buf_i/20)+1.5657)/1.4783;//polyfit no #2
-				iout=adc_convertedvalue[2+4*i]*adc_convertedvalue[2+4*i];
+				iout += (float)((adc_convertedvalue[2+4*i]-0.7947)/1.3695)*(float)((adc_convertedvalue[2+4*i]-0.7947)/1.3695);//no #3
 				temp += (4096-adc_convertedvalue[3+4*i])*240/4096;
 			}
 			vout = sqrt(vout*4/BUF_SIZE);

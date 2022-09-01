@@ -82,9 +82,10 @@ void LDP_Thread_Settings_Entry(void *parameter)
 //			vset = spinbox_v.value;//for test
 //			vset = ((float)spinbox_v.value-0.0141)/0.8029;//polyfit no #1
 			vset = ((float)spinbox_v.value-0.0178)/0.8062;//polyfit no #2 or no #3
-			iset = spinbox_i.value;//for test
+//			iset = spinbox_i.value;//for test
 //			iset = ((float)spinbox_i.value-0.8169)/0.7328;//polyfit no #1
 //			iset = ((float)spinbox_i.value-0.1445)/0.676;//polyfit no #2
+			iset = ((float)spinbox_i.value-0.0372)/0.7301;//polyfit no #3
 			HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,(uint16_t)iset);
 			if(on_off_flag)HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,(uint16_t)vset);
 			else HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,0);		
